@@ -12,20 +12,44 @@ class Section: Equatable {
     let cells: [FormCell]
     var footerTitle: String?
     var isVisible: Bool
+	
+	var previouslyVisibleCells: [FormCell] = []
+	var visibleCells: [FormCell] {
+		return cells.filter { $0.isVisible }
+	}
+	
     init(cells: [FormCell], footerTitle: String?, isVisible: Bool) {
         self.cells = cells
         self.footerTitle = footerTitle
         self.isVisible = isVisible
+		previouslyVisibleCells = visibleCells
     }
     
     static func ==(lhs: Section, rhs: Section) -> Bool {
         return lhs === rhs
     }
+	
+	func reloadCells(of section: Int, in tableView: UITableView) {
+		for index in cells.indices {
+			let cell = cells[index]
+			let newIndex = visibleCells.index(of: cell)
+			let oldIndex = previouslyVisibleCells.index(of: cell)
+			switch (newIndex, oldIndex) {
+			case (nil, nil), (.some,.some): break
+			case let (newIndex?, nil): // just appeared
+				tableView.insertRows(at: [IndexPath(row: newIndex, section: section)], with: .automatic)
+			case let (nil, oldIndex?): // just disappeared
+				tableView.deleteRows(at: [IndexPath(row: oldIndex, section: section)], with: .automatic)
+			}
+		}
+		previouslyVisibleCells = visibleCells
+	}
 }
 
 class FormCell: UITableViewCell {
     var shouldHighlight = false
     var didSelect: (() -> ())?
+	var isVisible: Bool = true
 }
 
 class FormViewController: UITableViewController {
@@ -40,6 +64,7 @@ class FormViewController: UITableViewController {
         UIView.setAnimationsEnabled(false)
         tableView.beginUpdates()
         for index in sections.indices {
+			// section visibility
             let section = sections[index]
             let newIndex = visibleSections.index(of: section)
             let oldIndex = previouslyVisibleSections.index(of: section)
@@ -50,10 +75,14 @@ class FormViewController: UITableViewController {
             case let (nil, oldIndex?):
                 tableView.deleteSections([oldIndex], with: .automatic)
             }
+			
+			// cell visibility
+			section.reloadCells(of: index, in: tableView)
+			
+			// footer updates
             let footer = tableView.footerView(forSection: index)
             footer?.textLabel?.text = tableView(tableView, titleForFooterInSection: index)
             footer?.setNeedsLayout()
-            
         }
         tableView.endUpdates()
         UIView.setAnimationsEnabled(true)
@@ -75,6 +104,8 @@ class FormViewController: UITableViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+		// FIXME: app crashes without reloading sections on initial load
+		reloadSections()
     }
     
     override func viewDidAppear(_ animated: Bool) {
@@ -87,13 +118,7 @@ class FormViewController: UITableViewController {
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return visibleSections[section].cells.count
-    }
-    
-    
-    
-    func cell(for indexPath: IndexPath) -> FormCell {
-        return visibleSections[indexPath.section].cells[indexPath.row]
+        return visibleSections[section].visibleCells.count
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -111,6 +136,12 @@ class FormViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         cell(for: indexPath).didSelect?()
     }
+	
+	// MARK: Helper(s)
+	
+	func cell(for indexPath: IndexPath) -> FormCell {
+		return visibleSections[indexPath.section].visibleCells[indexPath.row]
+	}
     
 }
 
@@ -306,3 +337,16 @@ func optionCell<Input: Equatable, State>(title: String, option: Input, keyPath: 
     }
 }
 
+func readOnlyTextCell<State>(title: String, keyPath: KeyPath<State, String>, isVisible: KeyPath<State, Bool>? = nil) -> Element<FormCell, State> {
+	return { context in
+		let cell = FormCell(style: .value1, reuseIdentifier: nil)
+		cell.textLabel?.text = title
+		cell.detailTextLabel?.text = context.state[keyPath: keyPath]
+		return RenderedElement(element: cell, strongReferences: [], update: { state in
+			cell.detailTextLabel?.text = state[keyPath: keyPath]
+			if let visible = isVisible {
+				cell.isVisible = state[keyPath: visible]
+			}
+		})
+	}
+}

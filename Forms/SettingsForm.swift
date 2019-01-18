@@ -36,6 +36,9 @@ struct Settings {
     var hotspotEnabled: String {
         return hotspot.isEnabled ? "On" : "Off"
     }
+	
+	var personalizationEnabled: Bool = false
+	var name: String = "Chris Lattner"
 }
 
 extension Hotspot {
@@ -57,7 +60,11 @@ let settingsForm: Form<Settings> =
     sections([
         section([
             detailTextCell(title: "Personal Hotspot", keyPath: \Settings.hotspotEnabled, form: bind(form: hotspotForm, to: \.hotspot))
-        ])
+        ]),
+		section([
+			controlCell(title: "Personalization", control: uiSwitch(keyPath: \.personalizationEnabled)),
+			readOnlyTextCell(title: "Hello", keyPath: \.name, isVisible: \.personalizationEnabled)
+		])
     ])
 
 let hotspotForm: Form<Hotspot> =
