@@ -197,7 +197,7 @@ func textField<State>(keyPath: WritableKeyPath<State, String>) -> Element<UIView
     }
 }
 
-func controlCell<State>(title: String, control: @escaping Element<UIView, State>, leftAligned: Bool = false) -> Element<FormCell, State> {
+func controlCell<State>(title: String, control: @escaping Element<UIView, State>, leftAligned: Bool = false, isVisible: KeyPath<State, Bool>? = nil) -> Element<FormCell, State> {
     return { context in
         let cell = FormCell(style: .value1, reuseIdentifier: nil)
         let renderedControl = control(context)
@@ -211,11 +211,16 @@ func controlCell<State>(title: String, control: @escaping Element<UIView, State>
             cell.contentView.addConstraint(
                 renderedControl.element.leadingAnchor.constraint(equalTo: cell.textLabel!.trailingAnchor, constant: 20))
         }
-        return RenderedElement(element: cell, strongReferences: renderedControl.strongReferences, update: renderedControl.update)
+		return RenderedElement(element: cell, strongReferences: renderedControl.strongReferences, update: { state in
+			if let visible = isVisible {
+				cell.isHidden = !state[keyPath: visible]
+			}
+			renderedControl.update(state)
+		})
     }
 }
 
-func detailTextCell<State>(title: String, keyPath: KeyPath<State, String>, form: @escaping Form<State>) -> Element<FormCell, State> {
+func detailTextCell<State>(title: String, keyPath: KeyPath<State, String>, form: @escaping Form<State>, isVisible: KeyPath<State, Bool>? = nil) -> Element<FormCell, State> {
     return { context in
         let cell = FormCell(style: .value1, reuseIdentifier: nil)
         cell.textLabel?.text = title
@@ -228,6 +233,9 @@ func detailTextCell<State>(title: String, keyPath: KeyPath<State, String>, form:
         }
         return RenderedElement(element: cell, strongReferences: rendered.strongReferences, update: { state in
             cell.detailTextLabel?.text = state[keyPath: keyPath]
+			if let visible = isVisible {
+				cell.isHidden = !state[keyPath: visible]
+			}
             rendered.update(state)
             nested.reloadSections()
         })
@@ -282,10 +290,10 @@ func sections<State>(_ sections: [Element<Section, State>]) -> Form<State> {
     }
 }
 
-func nestedTextField<State>(title: String, keyPath: WritableKeyPath<State, String>) -> Element<FormCell, State> {
+func nestedTextField<State>(title: String, keyPath: WritableKeyPath<State, String>, isVisible: KeyPath<State, Bool>? = nil) -> Element<FormCell, State> {
     let nested: Form<State> =
         sections([section([controlCell(title: title, control: textField(keyPath: keyPath), leftAligned: true)])])
-    return detailTextCell(title: title, keyPath: keyPath, form: nested)
+    return detailTextCell(title: title, keyPath: keyPath, form: nested, isVisible: isVisible)
 }
 
 

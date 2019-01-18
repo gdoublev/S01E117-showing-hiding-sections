@@ -36,6 +36,18 @@ struct Settings {
     var hotspotEnabled: String {
         return hotspot.isEnabled ? "On" : "Off"
     }
+	
+	var personalizationEnabled: Bool = false
+	var firstName: String = "Chris"
+	var lastName: String = "Lattner"
+	var useRandomGreeting: Bool = true
+	var enabledPersonalizationTitle: String? {
+		guard personalizationEnabled else { return nil }
+		let fullName = "\(firstName) \(lastName)"
+		guard useRandomGreeting,
+			let greeting = ["Hello", "Bonjour", "Hola", "Ciao", "Guten Tag"].randomElement() else { return "Hello, \(fullName)" }
+		return "\(greeting), \(fullName)"
+	}
 }
 
 extension Hotspot {
@@ -57,7 +69,13 @@ let settingsForm: Form<Settings> =
     sections([
         section([
             detailTextCell(title: "Personal Hotspot", keyPath: \Settings.hotspotEnabled, form: bind(form: hotspotForm, to: \.hotspot))
-        ])
+        ]),
+		section([
+			controlCell(title: "Personalize", control: uiSwitch(keyPath: \.personalizationEnabled)),
+			nestedTextField(title: "First Name", keyPath: \.firstName, isVisible: \.personalizationEnabled),
+			nestedTextField(title: "Last Name", keyPath: \.lastName, isVisible: \.personalizationEnabled),
+			controlCell(title: "Random Greeting", control: uiSwitch(keyPath: \.useRandomGreeting), isVisible: \.personalizationEnabled)
+		], footer: \.enabledPersonalizationTitle)
     ])
 
 let hotspotForm: Form<Hotspot> =
